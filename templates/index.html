@@ -5,9 +5,17 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_version }}">
 </head>
 <body>
-    <div id="loader" class="loading-overlay">
-        <div class="bumpy-car">🚗</div>
-        <h2 style="font-family:'Fredoka One'; color:var(--blue);">Scanning Roads...</h2>
+   <div id="loader" class="loading-overlay">
+        <div
+            style="position: relative; width: 220px; height: 391px; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.2); pointer-events: none;">
+            <iframe width="220" height="391"
+                src="https://www.youtube.com/embed/-h07SzjcEBs?autoplay=1&mute=1&loop=1&playlist=-h07SzjcEBs&controls=0&showinfo=0&rel=0&modestbranding=1"
+                frameborder="0" allow="autoplay; encrypted-media"
+                style="position: absolute; top:0; left:0; pointer-events: none;"></iframe>
+        </div>
+        <h2 class="loading-text"
+            style="font-family:'Fredoka One', cursive; color:var(--blue); font-size:22px; margin-top:24px;">Fixing
+            Pothole...</h2>
     </div>
 
     <div class="app-shell">
