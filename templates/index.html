@@ -1,11 +1,18 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI POTHOLE DETECTOR</title>
+    <!-- Use FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_version }}">
 </head>
+
 <body>
-   <div id="loader" class="loading-overlay">
+    <div id="loader" class="loading-overlay">
+        <!-- Maintained for compatibility, but progressive loading takes over -->
         <div
             style="position: relative; width: 220px; height: 391px; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.2); pointer-events: none;">
             <iframe width="220" height="391"
@@ -19,205 +26,455 @@
     </div>
 
     <div class="app-shell">
-        <div class="header"><h1>AI Road Pothole Detector</h1></div>
-        <div class="card">
-            <video id="camera" autoplay playsinline style="width:100%; border-radius:20px; background:#000;"></video>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
-                <button class="btn btn-blue" onclick="capImg()">📸 Capture</button>
-                <button id="recB" class="btn btn-blue" onclick="startR()">🎥 Record</button>
-                <button class="btn btn-outline" onclick="toggleCamera()">🔌 On/Off</button>
-                <button class="btn btn-outline" onclick="switchCam()">🔄 Switch</button>
+        <div class="header">
+            <div class="brand">
+                <i class="fa-solid fa-shield-halved" style="color: white; font-size: 20px;"></i>
+                <h1>AI POTHOLE DETECTOR</h1>
             </div>
-            <button id="subB" class="btn btn-blue" style="display:none; background:var(--dark-blue);" onclick="process()">🚀 Detect (<span id="qCount">0</span>)</button>
+            <div class="nav-icons">
+                <button class="icon-btn" onclick="window.location.href='/'"><i class="fa-solid fa-house"></i></button>
+                <button class="icon-btn" onclick="window.location.href='/history'"><i
+                        class="fa-solid fa-clock-rotate-left"></i></button>
+            </div>
         </div>
+
+        <div class="card p-0">
+            <div class="card-header">
+                <i class="fa-solid fa-camera"></i> Live Detection
+            </div>
+            <div class="video-container">
+                <div id="camera-off-msg" class="camera-off-state">
+                    <i class="fa-solid fa-camera" style="font-size: 32px; margin-bottom: 10px; color: #94a3b8;"></i>
+                    <p>Camera is off</p>
+                </div>
+                <!-- Video Element -->
+                <video id="camera" autoplay playsinline style="display: none;"></video>
+
+                <!-- Overlay controls when camera is ON -->
+                <div id="cam-controls" class="cam-controls" style="display: none;">
+                    <button class="ctrl-btn" onclick="switchCam()"><i class="fa-solid fa-rotate"></i></button>
+                    <button class="capture-btn" onclick="capImg()"></button>
+                    <button id="recB" class="ctrl-btn" onclick="startR()"><i class="fa-solid fa-video"></i></button>
+                </div>
+            </div>
+            <div style="padding: 16px; display:flex; gap:10px;">
+                <button id="toggleCamBtn" class="btn btn-blue" onclick="toggleCamera()" style="flex:1;">Turn On Camera</button>
+                <button id="camAnalyzeBtn" class="btn btn-blue" onclick="process()" style="display:none; flex:1; background:#10b981; border-color:#10b981;"><i class="fa-solid fa-chart-line"></i> Analyze Now</button>
+            </div>
+        </div>
+
         <div class="card">
-            <input type="file" id="fIn" multiple accept="image/*,video/*" class="btn btn-outline" style="padding:10px;">
-            <button class="btn btn-blue" onclick="uploadFiles()">📤 Submit Files</button>
-            <button class="btn btn-outline" onclick="window.location.href='/history'">📜 History</button>
+            <div class="card-header">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Upload Media
+            </div>
+
+            <div class="upload-area" id="drop-area" onclick="document.getElementById('fIn').click()">
+                <i class="fa-solid fa-cloud-arrow-up cloud-icon"></i>
+                <p class="upload-title">Drag & drop or click to upload</p>
+                <p class="upload-subtitle">Supports PNG, JPG, MP4 (Multiple allowed)</p>
+                <input type="file" id="fIn" multiple accept="image/*,video/*" style="display:none;"
+                    onchange="handleFiles(this.files)">
+            </div>
+
+            <button id="subB" class="btn btn-disabled" onclick="process()" disabled>
+                <i class="fa-solid fa-chart-line"></i> Analyze Image <span id="qCount" style="display:none;">(0)</span>
+            </button>
         </div>
     </div>
-<script>
-let stream, queue = [], mode = "environment", mediaRecorder, recordedChunks = [];
 
-// Camera works only on HTTPS or localhost (required by browsers on mobile)
-// Treat Hugging Face / other proxies as secure when they use HTTPS.
-const isSecure = (location.protocol === 'https:')
-    || location.hostname === 'localhost'
-    || location.hostname === '127.0.0.1';
-if (!isSecure) {
-    document.getElementById("camera").style.display = 'none';
-    var warning = document.createElement('div');
-    warning.style.cssText = 'padding:20px; background:#fee; border:2px solid #c00; border-radius:15px; margin:10px; color:#c00;';
-    warning.innerHTML = '⚠️ <strong>Camera needs HTTPS</strong><br>Use <strong>file upload</strong> below to add photos/videos.<br>After you deploy the app (e.g. Render/Railway), the site will use HTTPS and camera will work on mobile.';
-    document.querySelector('.card').prepend(warning);
-} else {
-    // On HTTPS: do not auto-start – mobile needs a user tap before camera can open
-    var hint = document.createElement('p');
-    hint.id = 'cameraHint';
-    hint.style.cssText = 'margin:10px 0; padding:12px; background:#e0f2fe; border-radius:12px; color:#0369a1; font-size:14px;';
-    hint.textContent = '📷 Tap "🔌 On/Off" to start camera (required on mobile).';
-    document.getElementById('camera').parentNode.insertBefore(hint, document.getElementById('camera').nextSibling);
-}
+    <script>
+        let stream, queue = [], mode = "environment", mediaRecorder, recordedChunks = [];
 
-async function toggleCamera() {
-    if (!isSecure) {
-        alert('Camera requires HTTPS. Use file upload instead.');
-        return;
-    }
-    var hint = document.getElementById('cameraHint');
-    try {
-        if (stream) { 
-            stream.getTracks().forEach(function(t) { t.stop(); }); 
-            stream = null; 
-            document.getElementById("camera").srcObject = null;
-            if (hint) hint.textContent = '📷 Tap "🔌 On/Off" to start camera again.';
-        } else {
-            // First try with facingMode (rear camera on mobile)
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } },
-                    audio: false
-                });
-            } catch (e) {
-                console.warn('Camera with facingMode failed, retrying with default camera...', e);
-                // Fallback: generic video constraints (helps on some mobile browsers)
-                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+
+        // File Upload Logic
+        function handleFiles(files) {
+            if (files.length === 0) return;
+            for (let f of files) {
+                f.__source = 'upload';
+                queue.push(f);
             }
-            document.getElementById("camera").srcObject = stream; 
-            if (hint) hint.style.display = 'none';
+            updateAnalyzeBtn();
         }
-    } catch(err) {
-        console.error('Camera error:', err);
-        if (hint) hint.style.display = '';
-        if (hint) hint.innerHTML = '❌ Camera denied or not available. Allow camera in browser settings (and in your site settings) or use <strong>file upload</strong> below.';
-        alert('Camera access denied or not available. Use file upload below.');
-    }
-}
 
-function switchCam() { 
-    mode = mode === "user" ? "environment" : "user"; 
-    if(stream) {
-        toggleCamera().then(() => setTimeout(toggleCamera, 100));
-    }
-}
+        const dropArea = document.getElementById('drop-area');
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+        ['dragenter', 'dragover'].forEach(eventName => { dropArea.addEventListener(eventName, highlight, false); });
+        ['dragleave', 'drop'].forEach(eventName => { dropArea.addEventListener(eventName, unhighlight, false); });
+        function highlight(e) { dropArea.classList.add('highlight'); }
+        function unhighlight(e) { dropArea.classList.remove('highlight'); }
+        dropArea.addEventListener('drop', handleDrop, false);
+        function handleDrop(e) {
+            let dt = e.dataTransfer;
+            let files = dt.files;
+            handleFiles(files);
+            document.getElementById('fIn').files = files; // Sync input
+        }
 
-function capImg() {
-    if (!stream) {
-        alert('Please start camera first or use file upload.');
-        return;
-    }
-    const v = document.getElementById("camera");
-    if (!v.videoWidth) {
-        alert('Camera not ready. Please wait...');
-        return;
-    }
-    const c = document.createElement("canvas");
-    c.width = v.videoWidth; 
-    c.height = v.videoHeight;
-    c.getContext("2d").drawImage(v, 0, 0);
-    c.toBlob(b => { 
-        queue.push(new File([b], `c_${Date.now()}.jpg`)); 
-        document.getElementById("qCount").innerText = queue.length;
-        document.getElementById("subB").style.display = "flex";
-    }, 'image/jpeg');
-}
+        function updateAnalyzeBtn() {
+            let camCount = queue.filter(f => f.__source === 'camera').length;
+            let upCount = queue.filter(f => f.__source === 'upload').length;
+            
+            const btn = document.getElementById("subB");
+            const countSpan = document.getElementById("qCount");
+            if (upCount > 0) {
+                btn.classList.remove("btn-disabled");
+                btn.classList.add("btn-blue");
+                btn.disabled = false;
+                countSpan.style.display = "inline";
+                countSpan.innerText = `(${upCount})`;
+            } else {
+                btn.classList.add("btn-disabled");
+                btn.classList.remove("btn-blue");
+                btn.disabled = true;
+                countSpan.style.display = "none";
+            }
+            
+            const camBtn = document.getElementById('camAnalyzeBtn');
+            if (camCount > 0) {
+                camBtn.style.display = 'block';
+                camBtn.innerHTML = `<i class="fa-solid fa-chart-line"></i> Analyze Now (${camCount})`;
+            } else {
+                camBtn.style.display = 'none';
+            }
+        }
 
-function startR() {
-    if (!stream) {
-        alert('Please start camera first.');
-        return;
-    }
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
-        document.getElementById("recB").textContent = '🎥 Record';
-        return;
-    }
-    recordedChunks = [];
-    try {
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
-        mediaRecorder.ondataavailable = e => { if(e.data.size > 0) recordedChunks.push(e.data); };
-        mediaRecorder.onstop = () => {
-            const blob = new Blob(recordedChunks, { type: 'video/webm' });
-            queue.push(new File([blob], `rec_${Date.now()}.webm`));
-            document.getElementById("qCount").innerText = queue.length;
-            document.getElementById("subB").style.display = "flex";
-            document.getElementById("recB").textContent = '🎥 Record';
-        };
-        mediaRecorder.start();
-        document.getElementById("recB").textContent = '⏹️ Stop';
-    } catch(err) {
-        console.error('Recording error:', err);
-        alert('Video recording not supported. Please use file upload.');
-    }
-}
+        async function toggleCamera() {
+            if (!isSecure) { alert('Camera requires HTTPS. Use file upload instead.'); return; }
+            const btn = document.getElementById("toggleCamBtn");
+            const camOffMsg = document.getElementById("camera-off-msg");
+            const camElement = document.getElementById("camera");
+            const camControls = document.getElementById("cam-controls");
 
-function uploadFiles() {
-    const files = document.getElementById('fIn').files;
-    if (files.length === 0) {
-        alert('Please select files first.');
-        return;
-    }
+            try {
+                if (stream) {
+                    stream.getTracks().forEach(t => t.stop());
+                    stream = null;
+                    camElement.srcObject = null;
+                    camElement.style.display = "none";
+                    camControls.style.display = "none";
+                    camOffMsg.style.display = "flex";
+                    btn.textContent = "Turn On Camera";
+                    btn.className = "btn btn-blue";
+                } else {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } },
+                        audio: false
+                    });
+                    camElement.srcObject = stream;
+                    camElement.style.display = "block";
+                    camControls.style.display = "flex";
+                    camOffMsg.style.display = "none";
+                    btn.textContent = "Turn Off Camera";
+                    btn.className = "btn btn-outline"; // Darker button styling for off
+                }
+            } catch (err) {
+                console.error('Camera error:', err);
+                alert('Camera access denied or not available. Use file upload below.');
+            }
+        }
 
-    // Submit immediately (especially important for uploaded videos)
-    queue = [];
-    for (let f of files) queue.push(f);
-    document.getElementById("qCount").innerText = queue.length;
-    document.getElementById("subB").style.display = "flex";
+        function switchCam() {
+            mode = mode === "user" ? "environment" : "user";
+            if (stream) { toggleCamera().then(() => setTimeout(toggleCamera, 100)); }
+        }
 
-    // Clear input so re-selecting the same file works
-    document.getElementById('fIn').value = '';
+        function capImg() {
+            if (!stream) return;
+            const v = document.getElementById("camera");
+            if (!v.videoWidth) return;
+            const c = document.createElement("canvas");
+            c.width = v.videoWidth; c.height = v.videoHeight;
+            c.getContext("2d").drawImage(v, 0, 0);
+            c.toBlob(b => {
+                let f = new File([b], `c_${Date.now()}.jpg`);
+                f.__source = 'camera';
+                queue.push(f);
+                updateAnalyzeBtn();
+                // brief flash effect
+                v.style.opacity = 0.5;
+                setTimeout(() => v.style.opacity = 1, 100);
+                flashBtnMsg('Image Captured!');
+                document.getElementById('camAnalyzeBtn').style.display = 'block';
+                document.getElementById('subB').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 'image/jpeg');
+        }
 
-    // Auto-start detection after upload click
-    process();
-}
+        function flashBtnMsg(msg) {
+            const btn = document.getElementById("toggleCamBtn");
+            const oldText = btn.textContent;
+            btn.innerHTML = `<i class="fa-solid fa-check"></i> ${msg}`;
+            btn.classList.add("btn-success");
+            setTimeout(() => {
+                btn.textContent = oldText;
+                btn.classList.remove("btn-success");
+            }, 2000);
+        }
 
-function process() {
-    if (queue.length === 0) {
-        alert('Please capture images or upload files first.');
-        return;
-    }
-    document.getElementById('loader').style.display = 'flex';
-    var fd = new FormData();
-    queue.forEach(function(f) { fd.append('images', f); });
+        function startR() {
+            if (!stream) return;
+            const recBtn = document.getElementById("recB");
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                recBtn.style.color = "white";
+                return;
+            }
+            recordedChunks = [];
+            try {
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+                mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    let f = new File([blob], `rec_${Date.now()}.webm`);
+                    f.__source = 'camera';
+                    queue.push(f);
+                    updateAnalyzeBtn();
+                    recBtn.style.color = "white";
+                    flashBtnMsg('Video Captured!');
+                    document.getElementById('camAnalyzeBtn').style.display = 'block';
+                    document.getElementById('subB').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                };
+                mediaRecorder.start();
+                recBtn.style.color = "red"; // highlight recording
+            } catch (err) {
+                console.error('Recording error:', err);
+                alert('Video recording not supported. Please use file upload.');
+            }
+        }
 
-    function submitWithLocation(lat, lon) {
-        fd.append('lat', String(lat));
-        fd.append('lon', String(lon));
-        fetch('/detect_multiple', { method: 'POST', body: fd })
-            .then(function(r) { return r.text(); })
-            .then(function(h) {
-                document.open();
-                document.write(h);
-                document.close();
-            })
-            .catch(function(err) {
-                console.error('Upload error:', err);
-                alert('Upload failed. Please try again.');
-                document.getElementById('loader').style.display = 'none';
+        function process() {
+            if (queue.length === 0) return;
+            
+            if (navigator.geolocation) {
+                document.getElementById('subB').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Getting GPS...';
+                
+                navigator.geolocation.getCurrentPosition(
+                    function(p) { startProcessing(p.coords.latitude, p.coords.longitude); },
+                    function(err) { 
+                        console.warn("Location error:", err);
+                        startProcessing('', ''); 
+                    },
+                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                );
+            } else {
+                startProcessing('', '');
+            }
+        }
+
+        async function startProcessing(latitude, longitude) {
+            let lat = latitude;
+            let lon = longitude;
+            
+            // Stop camera if running
+            if (stream) {
+                stream.getTracks().forEach(t => t.stop());
+                stream = null;
+            }
+            
+            // Convert current app-shell innerHTML to a processing view (Optimistic UI in new design)
+            const shell = document.querySelector('.app-shell');
+            shell.innerHTML = `
+            <div class="header">
+                <div class="brand">
+                    <button class="icon-btn" onclick="window.location.href='/'" style="background:transparent; padding:0; width:auto;"><i class="fa-solid fa-arrow-left" style="color:white; font-size:20px;"></i></button>
+                    <h1>Processing...</h1>
+                </div>
+                <div class="nav-icons">
+                    <button class="icon-btn" onclick="window.location.href='/'"><i class="fa-solid fa-house"></i></button>
+                    <button class="icon-btn" onclick="window.location.href='/history'"><i class="fa-solid fa-clock-rotate-left"></i></button>
+                </div>
+            </div>
+            
+            <div class="card" style="text-align:center;">
+                <h1 id="potholeCount" style="color:var(--blue); font-size:45px; margin:0;">0</h1>
+                <p>Potholes Found (Updating...)</p>
+                <p id="addressLine" style="font-size:11px; margin-bottom:10px;">📍 Fetching address...</p>
+                <div id="mapContainer" style="display:none;"></div>
+            </div>
+            <div class="card">
+                <div class="image-grid" id="previewGrid"></div>
+                <button id="finalBtn" class="btn btn-blue" style="display:none; margin-top:10px; width:100%;" onclick="goFinal()"><i class="fa-solid fa-bullhorn"></i> Generate Report</button>
+                <button id="homeBtn" class="btn btn-outline" style="display:none; margin-top:10px; width:100%;" onclick="window.location.href='/'"><i class="fa-solid fa-house"></i> Go Home</button>
+            </div>
+            `;
+            
+            const previewGrid = document.getElementById('previewGrid');
+            
+            // Progressive Loading: Show optimistic images with spinners
+            queue.forEach((file, i) => {
+                const url = URL.createObjectURL(file);
+                let elStr = '';
+                if (file.type.startsWith('video/')) {
+                    elStr = `<video src="${url}" style="width:100%; height:100%; object-fit:cover; filter: blur(2px);" muted loop playsinline></video>`;
+                } else {
+                    elStr = `<img src="${url}" style="width:100%; height:100%; object-fit:cover; filter: blur(2px);">`;
+                }
+                
+                previewGrid.innerHTML += `
+                    <div id="previewWrap-${i}" style="position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden;">
+                        ${elStr}
+                        <div id="spinner-${i}" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.4);">
+                            <div style="width:24px; height:24px; border:3px solid rgba(255,255,255,0.3); border-top:3px solid #fff; border-radius:50%; animation: spin 1s linear infinite;"></div>
+                        </div>
+                    </div>
+                `;
             });
-    }
+            
+            if(!document.getElementById('spinStyle')) {
+                let st = document.createElement('style');
+                st.id = 'spinStyle';
+                st.innerHTML = '@keyframes spin { 100% { transform: rotate(360deg); } }';
+                document.head.appendChild(st);
+            }
+            
+            window.globalFinalImages = []; // Array of objects {name, potholes}
+            window.removeDynamicResult = function(imgName, wrapId) {
+                const wrap = document.getElementById(wrapId);
+                if(wrap) wrap.style.display = 'none';
+                
+                const imgObj = window.globalFinalImages.find(i => i.name === imgName);
+                if(imgObj && window.finalResultData) {
+                    window.finalResultData.potholes = Math.max(0, window.finalResultData.potholes - imgObj.potholes);
+                    document.getElementById('potholeCount').textContent = window.finalResultData.potholes;
+                }
+                
+                window.globalFinalImages = window.globalFinalImages.filter(i => i.name !== imgName);
+                
+                if(window.finalResultData) {
+                    window.finalResultData.images = window.globalFinalImages.map(i => i.name);
+                    const h = JSON.parse(localStorage.getItem('pothole_history') || '[]');
+                    if(h.length > 0 && h[0].date === window.finalResultData.date) {
+                        h[0].images = window.globalFinalImages.map(img => window.location.origin + '/static/results/' + img.name);
+                        h[0].potholes = window.finalResultData.potholes;
+                        h[0].images_data = window.globalFinalImages; // persist precise counts
+                        localStorage.setItem('pothole_history', JSON.stringify(h));
+                        sessionStorage.setItem('last_result_item', JSON.stringify(h[0]));
+                    }
+                }
+            };
+            
+            let totalPotholes = 0;
+            let addressResolved = "Location not available";
+            
+            // Geolocation parallel fetch
+            let fdGeo = new FormData();
+            fdGeo.append('lat', lat);
+            fdGeo.append('lon', lon);
+            const geoPromise = fetch('/api/geocode', { method: 'POST', body: fdGeo })
+                .then(r => r.json())
+                .then(data => {
+                    addressResolved = data.address;
+                    document.getElementById('addressLine').textContent = `📍 ${addressResolved}`;
+                    if (lat && lon) {
+                        document.getElementById('mapContainer').style.display = 'block';
+                        document.getElementById('mapContainer').innerHTML = `<iframe width="100%" height="180" style="border-radius:15px; border:none;" src="https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed"></iframe>`;
+                    } else {
+                        document.getElementById('addressLine').textContent += " (Location restricted)";
+                    }
+                }).catch(() => {
+                    document.getElementById('addressLine').textContent = `📍 Location error`;
+                });
+                
+            // Submitting 1-by-1 to update UI progressively
+            let promises = queue.map((file, i) => {
+                let fd = new FormData();
+                fd.append('image', file);
+                return fetch('/api/detect_single', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        totalPotholes += data.potholes;
+                        document.getElementById('potholeCount').textContent = totalPotholes;
+                        
+                        const wrap = document.getElementById(`previewWrap-${i}`);
+                        if (data.images && data.images.length > 0) {
+                            window.globalFinalImages.push(...data.images);
+                            
+                            const firstImg = data.images[0].name;
+                            wrap.innerHTML = `
+                                <img src="/static/results/${firstImg}" style="width:100%; height:100%; object-fit:cover; animation: fadeIn 0.5s;">
+                                <button class="thumb-remove" onclick="removeDynamicResult('${firstImg}', 'previewWrap-${i}')" title="Remove"><i class="fa-solid fa-xmark"></i></button>
+                                <a href="/static/results/${firstImg}" download="${firstImg}" class="thumb-download" title="Download"><i class="fa-solid fa-download"></i></a>
+                            `;
+                            
+                            if (data.images.length > 1) {
+                                for(let j=1; j<data.images.length; j++){
+                                    const exId = `previewWrap-${i}-ex${j}`;
+                                    const exImg = data.images[j].name;
+                                    previewGrid.innerHTML += `
+                                        <div id="${exId}" style="position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden; animation: fadeIn 0.5s;">
+                                            <img src="/static/results/${exImg}" style="width:100%; height:100%; object-fit:cover;">
+                                            <button class="thumb-remove" onclick="removeDynamicResult('${exImg}', '${exId}')" title="Remove"><i class="fa-solid fa-xmark"></i></button>
+                                            <a href="/static/results/${exImg}" download="${exImg}" class="thumb-download" title="Download"><i class="fa-solid fa-download"></i></a>
+                                        </div>
+                                    `;
+                                }
+                            }
+                        } else {
+                            wrap.innerHTML = `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#eee; color:#666; font-size:12px;">No Detections</div>`;
+                        }
+                    })
+                    .catch(err => {
+                        const wrap = document.getElementById(`previewWrap-${i}`);
+                        wrap.innerHTML = `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#fee; color:#c00; font-size:12px;">Error</div>`;
+                    });
+            });
+            
+            await Promise.all([...promises, geoPromise]);
+            
+            // Everything is done loading!
+            document.querySelector('.header h1').textContent = 'Results';
+            document.querySelector('.card p:nth-of-type(1)').textContent = 'Potholes Found';
+            
+            if (totalPotholes > 0) {
+                document.getElementById('finalBtn').style.display = 'inline-flex';
+            } else {
+                let msg = document.createElement('p');
+                msg.style = "color:var(--red); font-size:14px; text-align:center; margin: 10px 0;";
+                msg.innerHTML = "✅ No potholes detected. Report not needed.";
+                document.getElementById('finalBtn').parentNode.insertBefore(msg, document.getElementById('finalBtn'));
+            }
+            document.getElementById('homeBtn').style.display = 'inline-flex';
+            
+            window.finalResultData = {
+                potholes: totalPotholes,
+                address: addressResolved,
+                lat: lat,
+                lon: lon,
+                images: window.globalFinalImages.map(i => i.name),
+                date: new Date().toLocaleString()
+            };
+            
+            var h = JSON.parse(localStorage.getItem('pothole_history') || '[]');
+            var fullImgs = window.globalFinalImages.map(function(img) { return window.location.origin + '/static/results/' + img.name; });
+            var itemToSave = { 
+                potholes: totalPotholes, 
+                address: addressResolved, 
+                lat: lat, 
+                lon: lon, 
+                images: fullImgs, 
+                images_data: window.globalFinalImages, // precise data
+                date: window.finalResultData.date 
+            };
+            h.unshift(itemToSave);
+            localStorage.setItem('pothole_history', JSON.stringify(h));
+            sessionStorage.setItem('last_result_item', JSON.stringify(itemToSave));
+        }
 
-    var opts = { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 };
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            function(p) {
-                submitWithLocation(p.coords.latitude, p.coords.longitude);
-            },
-            function() {
-                // Permission denied or unavailable – submit without location
-                submitWithLocation('', '');
-            },
-            opts
-        );
-    } else {
-        // Geolocation not supported – submit without location
-        submitWithLocation('', '');
-    }
-}
-
-
-
-// Do not auto-start camera: on mobile, browser requires a user tap first
-</script>
+        function goFinal() {
+            sessionStorage.setItem('current_complaint', JSON.stringify({
+                potholes: window.finalResultData.potholes,
+                address: window.finalResultData.address,
+                lat: window.finalResultData.lat,
+                lon: window.finalResultData.lon,
+                all_images: window.finalResultData.images,
+                date: window.finalResultData.date
+            }));
+            window.location.href = '/complaint';
+        }
+    </script>
 </body>
+
 </html>

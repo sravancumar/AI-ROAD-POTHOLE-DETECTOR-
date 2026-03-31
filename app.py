@@ -39,58 +39,62 @@ def complaint(): return render_template("complaint.html")
 @app.route("/last_result")
 def last_result(): return render_template("last_result.html")
 
-@app.route("/detect_multiple", methods=["POST"])
-def detect_multiple():
-    files = request.files.getlist("images")
-    lat, lon = request.form.get("lat"), request.form.get("lon")
-    all_results, total_potholes = [], 0
+
+@app.route("/api/detect_single", methods=["POST"])
+def detect_single():
+    file = request.files.get("image")
+    if not file: return {"error": "No file"}, 400
+    
+    unique_id = uuid.uuid4().hex
+    ext = file.filename.split('.')[-1].lower()
+    path = os.path.normpath(os.path.join(UPLOAD_FOLDER, f"{unique_id}.{ext}"))
+    file.save(path)
+    
+    results = []
+    total_potholes = 0
     video_exts = {"mp4", "mov", "avi", "webm", "mkv"}
+    
+    if ext in video_exts:
+        cap = cv2.VideoCapture(path)
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret: break
+            if int(cap.get(cv2.CAP_PROP_POS_FRAMES)) % 30 == 0:
+                tmp_p = os.path.join(UPLOAD_FOLDER, "frame.jpg")
+                cv2.imwrite(tmp_p, frame)
+                try:
+                    res = model(tmp_p, conf=0.25)
+                    r0 = res[0]
+                    num = len(r0.boxes)
+                    total_potholes += num
+                    out_name = f"v_{uuid.uuid4().hex}.jpg"
+                    cv2.imwrite(os.path.join(RESULT_FOLDER, out_name), r0.plot())
+                    results.append({"name": out_name, "potholes": num})
+                except Exception:
+                    continue
+        cap.release()
+    else:
+        try:
+            res = model(path, conf=0.25)
+            r0 = res[0]
+            num = len(r0.boxes)
+            total_potholes += num
+            out_name = f"r_{unique_id}.jpg"
+            cv2.imwrite(os.path.join(RESULT_FOLDER, out_name), r0.plot())
+            results.append({"name": out_name, "potholes": num})
+        except Exception:
+            pass
+            
+    return {"potholes": total_potholes, "images": results}
 
-    for file in files:
-        if not file: continue
-        unique_id = uuid.uuid4().hex
-        ext = file.filename.split('.')[-1].lower()
-        path = os.path.normpath(os.path.join(UPLOAD_FOLDER, f"{unique_id}.{ext}"))
-        file.save(path)
 
-        if ext in video_exts:
-            cap = cv2.VideoCapture(path)
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret: break
-                if int(cap.get(cv2.CAP_PROP_POS_FRAMES)) % 30 == 0:
-                    tmp_p = os.path.join(UPLOAD_FOLDER, "frame.jpg")
-                    cv2.imwrite(tmp_p, frame)
-                    try:
-                        res = model(tmp_p, conf=0.25)
-                        r0 = res[0]
-                        total_potholes += len(r0.boxes)
-                        out_name = f"v_{uuid.uuid4().hex}.jpg"
-                        cv2.imwrite(os.path.join(RESULT_FOLDER, out_name), r0.plot())
-                        all_results.append(out_name)
-                    except Exception:
-                        # Skip frames that fail inference but continue processing
-                        continue
-            cap.release()
-        else:
-            try:
-                res = model(path, conf=0.25)
-                r0 = res[0]
-                total_potholes += len(r0.boxes)
-                out_name = f"r_{unique_id}.jpg"
-                cv2.imwrite(os.path.join(RESULT_FOLDER, out_name), r0.plot())
-                all_results.append(out_name)
-            except Exception:
-                # If a particular file fails inference, skip it so the whole request doesn't crash
-                continue
-
-    # Normalize location coming from the browser
+@app.route("/api/geocode", methods=["POST"])
+def api_geocode():
     lat = (request.form.get("lat") or "").strip()
     lon = (request.form.get("lon") or "").strip()
-    has_location = bool(lat and lon)
-
+    
     address = "Location not available"
-    if has_location:
+    if lat and lon:
         try:
             loc = geolocator.reverse("%s,%s" % (lat, lon), timeout=5)
             if loc and getattr(loc, "address", None):
@@ -99,17 +103,7 @@ def detect_multiple():
                 address = "%s, %s" % (lat, lon)
         except Exception:
             address = "%s, %s" % (lat, lon)
-
-    return render_template(
-        "result.html",
-        potholes=total_potholes,
-        address=address,
-        lat=lat,
-        lon=lon,
-        has_location=has_location,
-        images=all_results,
-    )
-
+    return {"address": address}
 
 @app.route('/prepare_ghmc', methods=['POST'])
 def prepare_ghmc():

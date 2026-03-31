@@ -2,11 +2,17 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_version }}">
 </head>
 <body>
 <div id="main-view" class="app-shell">
-    <div class="header"><a href="/" class="back-arrow">←</a><h1>History</h1></div>
+    <div class="header">
+        <div class="brand">
+            <button class="icon-btn" onclick="window.location.href='/'"><i class="fa-solid fa-arrow-left"></i></button>
+            <h1>History</h1>
+        </div>
+    </div>
     <div id="list" style="flex-grow:1;"></div>
     <div class="card" style="border:none; background:transparent;">
         <button class="btn btn-outline" style="color:red; border-color:red;" onclick="localStorage.clear(); location.reload();">🗑️ Clear All</button>
@@ -36,13 +42,52 @@ function showDetail(i) {
     const hasLoc = item.lat != null && item.lon != null && item.lat !== '' && item.lon !== '';
     const mapHtml = hasLoc ? `<iframe width="100%" height="180" src="https://maps.google.com/maps?q=${item.lat},${item.lon}&z=15&output=embed" title="Map"></iframe>` : '<p style="font-size:12px; color:#64748b;">📍 Location not available.</p>';
     document.getElementById('main-view').innerHTML = `
-        <div class="header"><button onclick="location.reload()" class="back-arrow">←</button><h1>Detail</h1></div>
+        <div class="header">
+            <div class="brand">
+                <button onclick="location.reload()" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></button>
+                <h1>Detail</h1>
+            </div>
+        </div>
         <div class="card" style="text-align:center;">
             <h1>${item.potholes} Found</h1><p>${item.date}</p>
             ${mapHtml}
         </div>
-        <div class="card"><div class="image-grid">${item.images.map(img => `<img src="${img}">`).join('')}</div>
-        <button class="btn btn-blue" onclick='lodge(${JSON.stringify(item)})'>📢 Lodge Complaint Again</button></div>`;
+        <div class="card"><div class="image-grid">${item.images.map((img, imgIdx) => `
+            <div id="hist-img-${i}-${imgIdx}" style="position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden;">
+                <img src="${img}" style="width:100%; height:100%; object-fit:cover;">
+                <button class="thumb-remove" onclick="removeHistImage(${i}, ${imgIdx})" title="Remove"><i class="fa-solid fa-xmark"></i></button>
+                <a href="${img}" download="${img.split('/').pop()}" class="thumb-download" title="Download"><i class="fa-solid fa-download"></i></a>
+            </div>
+        `).join('')}</div>
+        ${item.potholes > 0 ? `<button class="btn btn-blue" onclick='lodge(${JSON.stringify(item)})'>📢 Lodge Complaint Again</button>` : `<p style="color:var(--red); font-size:14px; text-align:center; margin: 10px 0;">✅ No potholes detected. Report not needed.</p>`}</div>`;
+}
+function removeHistImage(i, imgIdx) {
+    let h = JSON.parse(localStorage.getItem('pothole_history'));
+    if(h[i]) {
+        let pCount = 0;
+        if(h[i].images_data && h[i].images_data[imgIdx]) {
+            pCount = h[i].images_data[imgIdx].potholes;
+        } else {
+            pCount = h[i].images.length > 0 ? Math.round(h[i].potholes / h[i].images.length) : 0;
+        }
+        
+        h[i].images.splice(imgIdx, 1);
+        if(h[i].images_data) h[i].images_data.splice(imgIdx, 1);
+        h[i].potholes = Math.max(0, h[i].potholes - pCount);
+        localStorage.setItem('pothole_history', JSON.stringify(h));
+        
+        const el = document.getElementById(`hist-img-${i}-${imgIdx}`);
+        if(el) el.style.display = 'none';
+        
+        let pc = document.querySelector('.card h1');
+        if(pc && pc.innerText.includes('Found')) {
+            pc.innerText = h[i].potholes + ' Found';
+        }
+        
+        if (i === 0) {
+            sessionStorage.setItem('last_result_item', JSON.stringify(h[0]));
+        }
+    }
 }
 function lodge(item) {
     sessionStorage.setItem('current_complaint', JSON.stringify({ ...item, all_images: item.images.map(url => url.split('/').pop()) }));
