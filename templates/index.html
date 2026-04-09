@@ -11,19 +11,7 @@
 </head>
 
 <body>
-    <div id="loader" class="loading-overlay">
-        <!-- Maintained for compatibility, but progressive loading takes over -->
-        <div
-            style="position: relative; width: 220px; height: 391px; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.2); pointer-events: none;">
-            <iframe width="220" height="391"
-                src="https://www.youtube.com/embed/-h07SzjcEBs?autoplay=1&mute=1&loop=1&playlist=-h07SzjcEBs&controls=0&showinfo=0&rel=0&modestbranding=1"
-                frameborder="0" allow="autoplay; encrypted-media"
-                style="position: absolute; top:0; left:0; pointer-events: none;"></iframe>
-        </div>
-        <h2 class="loading-text"
-            style="font-family:'Fredoka One', cursive; color:var(--blue); font-size:22px; margin-top:24px;">Fixing
-            Pothole...</h2>
-    </div>
+
 
     <div class="app-shell">
         <div class="header">
@@ -93,18 +81,11 @@
     <script>
         let stream, queue = [], mode = "environment", mediaRecorder, recordedChunks = [];
         const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-        // History Management for Mobile Back Swipe
-        window.originalAppShell = "";
         document.addEventListener('DOMContentLoaded', () => {
-            window.originalAppShell = document.querySelector('.app-shell').innerHTML;
             history.replaceState({ view: 'home' }, "Home", "");
         });
         window.addEventListener('popstate', function (e) {
-            if (e.state && e.state.view === 'results') {
-                // If they popstate into results magically, do nothing
-            } else {
-                location.reload(); // Restores perfectly to the default camera/upload block
-            }
+            if (!e.state || e.state.view !== 'results') location.reload();
         });
         // File Upload Logic
         function handleFiles(files) {
@@ -207,12 +188,10 @@
                 f.__source = 'camera';
                 queue.push(f);
                 updateAnalyzeBtn();
-                // brief flash effect
                 v.style.opacity = 0.5;
                 setTimeout(() => v.style.opacity = 1, 100);
                 flashBtnMsg('Image Captured!');
                 document.getElementById('camAnalyzeBtn').style.display = 'block';
-                // REMOVED AUTO-SCROLLING
             }, 'image/jpeg');
         }
         function flashBtnMsg(msg) {
@@ -246,7 +225,6 @@
                     recBtn.style.color = "white";
                     flashBtnMsg('Video Captured!');
                     document.getElementById('camAnalyzeBtn').style.display = 'block';
-                    // REMOVED AUTO-SCROLLING
                 };
                 mediaRecorder.start();
                 recBtn.style.color = "red"; // highlight recording
@@ -258,15 +236,10 @@
         function process() {
             if (queue.length === 0) return;
 
-            // Show loading on both buttons
             const uploadBtn = document.getElementById('subB');
             const camBtn = document.getElementById('camAnalyzeBtn');
-
-            // Update upload button
             uploadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
             uploadBtn.disabled = true;
-
-            // Update camera button if visible
             if (camBtn && camBtn.style.display !== 'none') {
                 camBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
                 camBtn.disabled = true;
@@ -330,8 +303,6 @@
             `;
 
             const previewGrid = document.getElementById('previewGrid');
-
-            // Progressive Loading: Show optimistic images with spinners
             queue.forEach((file, i) => {
                 const url = URL.createObjectURL(file);
                 let elStr = '';
@@ -386,8 +357,6 @@
 
             let totalPotholes = 0;
             let addressResolved = "Location not available";
-
-            // Geolocation parallel fetch
             let fdGeo = new FormData();
             fdGeo.append('lat', lat);
             fdGeo.append('lon', lon);
@@ -406,7 +375,6 @@
                     document.getElementById('addressLine').textContent = `📍 Location error`;
                 });
 
-            // Submitting 1-by-1 to update UI progressively
             let promises = queue.map((file, i) => {
                 let fd = new FormData();
                 fd.append('image', file);
@@ -479,8 +447,6 @@
             });
 
             await Promise.all([...promises, geoPromise]);
-
-            // Everything is done loading!
             document.querySelector('.header h1').textContent = 'Analysis Results';
             document.querySelector('.card p:nth-of-type(1)').textContent = 'Total Potholes Detected';
 
@@ -517,15 +483,10 @@
             localStorage.setItem('pothole_history', JSON.stringify(h));
             sessionStorage.setItem('last_result_item', JSON.stringify(itemToSave));
 
-            // Reset both buttons after processing complete
             const uploadBtn = document.getElementById('subB');
             const camBtn = document.getElementById('camAnalyzeBtn');
-
-            // Reset upload button
             uploadBtn.innerHTML = '<i class="fa-solid fa-chart-line"></i> Analyze Media <span id="qCount" style="display:none;">(0)</span>';
             uploadBtn.disabled = false;
-
-            // Reset camera button if visible
             if (camBtn && camBtn.style.display !== 'none') {
                 camBtn.innerHTML = '<i class="fa-solid fa-chart-line"></i> Analyze Now';
                 camBtn.disabled = false;

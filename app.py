@@ -300,13 +300,9 @@ def prepare_ghmc():
         'images': image_paths
     }
     pfile = os.path.join(BASE_DIR, 'ghmc_payload.json')
-    import json
     with open(pfile, 'w', encoding='utf-8') as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
     return {'status': 'ok', 'path': pfile}
-
-
-
 
 
 def _get_local_ip():

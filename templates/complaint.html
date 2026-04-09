@@ -212,24 +212,18 @@
         }
         function mail() { window.location.href = `mailto:ghmc@hyderabad.gov.in?subject=Pothole Repair&body=${encodeURIComponent(msg)}`; }
         async function ghmc() {
-            // Copy report text so user can paste directly into GHMC grievance form
             try {
                 await navigator.clipboard.writeText(msg);
-                alert("Report copied. Preparing GHMC payload on server and opening GHMC page. After login (OTP), run the local script to auto-fill.");
+                alert("Report copied to clipboard. Paste it into the GHMC grievance form.");
             } catch (e) {
-                // Fallback: still open the page even if clipboard permission denied
-                alert("Preparing GHMC payload on server. If copy failed, copy the report manually.");
+                alert("Please copy the report manually before submitting.");
             }
-            // Build payload from the saved session data and send to server
             const payload = { potholes: d.potholes, address: d.address, lat: d.lat, lon: d.lon, all_images: d.all_images, date: d.date, message: msg };
             try {
                 await fetch('/prepare_ghmc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                alert('GHMC payload saved on server (ghmc_payload.json). Run: python scripts/ghmc_submit.py locally to auto-fill the GHMC form.');
             } catch (err) {
-                console.error('Failed to save payload:', err);
-                alert('Could not save GHMC payload on server. The page will still open so you can paste the report manually.');
+                console.error('Failed to save GHMC payload:', err);
             }
-            // Official GHMC e-Complaints -> Lodge Grievance page (OTP-based)
             window.open("https://igs.ghmc.gov.in/operator/send_otp_mobile", "_blank");
         }
     </script>

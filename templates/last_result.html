@@ -50,10 +50,6 @@
                 }).join('') +
                 '</div>' +
                 '</div>';
-            '</div>' +
-                '<div id="action-footer" style="padding: 12px 15px 15px 15px; background: white; z-index: 100; flex-shrink: 0; box-shadow: 0 -4px 15px rgba(0,0,0,0.02);">' +
-                (item.potholes > 0 ? '<button class="btn btn-blue" onclick="go()" style="margin:0; width:100%; border-radius: 20px; font-size: 16px; padding: 18px; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);">📢 Generate Official Report</button>' : '<p style="color:var(--red); font-size:14px; text-align:center; margin: 0;">✅ No potholes detected. Report not needed.</p>') +
-                '</div>';
         }
         function go() {
             const item = JSON.parse(sessionStorage.getItem('last_result_item') || 'null')
