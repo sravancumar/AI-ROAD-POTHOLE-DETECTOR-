@@ -1,121 +1,125 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_version }}">
 </head>
+
 <body>
-<div class="app-shell">
-    <div class="header">
-        <div class="brand">
-            <button class="icon-btn" onclick="window.location.href='/'"><i class="fa-solid fa-arrow-left"></i></button>
-            <h1>Results</h1>
+    <div class="app-shell" style="height: 100dvh; overflow: hidden;">
+        <div class="header" style="flex-shrink: 0;">
+            <div class="brand">
+                <button class="icon-btn" onclick="window.location.href='/'"><i
+                        class="fa-solid fa-arrow-left"></i></button>
+                <h1>Analysis Results</h1>
+            </div>
+            <div class="nav-icons">
+                <button class="icon-btn" onclick="window.location.href='/'"><i class="fa-solid fa-house"></i></button>
+                <button class="icon-btn" onclick="window.location.href='/history'"><i
+                        class="fa-solid fa-clock-rotate-left"></i></button>
+            </div>
         </div>
+        <div id="content" style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column;"></div>
     </div>
-    <div id="content"></div>
-</div>
 
-<script>
-function render(item) {
-    const imgs = (item.images || []).map(function(u) { return '<img src="' + u + '">'; }).join('');
-    const addr = item.address || 'Location Found';
-    const hasLoc = item.lat != null && item.lon != null && String(item.lat) !== '' && String(item.lon) !== '';
-    const mapHtml = hasLoc
-        ? '<iframe width="100%" height="180" style="border-radius:15px; border:none;" src="https://maps.google.com/maps?q=' + item.lat + ',' + item.lon + '&z=15&output=embed"></iframe>'
-        : '<p style="font-size:12px; color:#64748b; margin:10px 0;">📍 Enable location when detecting to see map.</p>';
-    document.getElementById('content').innerHTML =
-        '<div class="card" style="text-align:center;">' +
-        '<h1 style="color:var(--blue); font-size:45px; margin:0;">' + (item.potholes ?? '') + '</h1>' +
-        '<p>Potholes Found</p>' +
-        '<p style="font-size:11px; margin-bottom:10px;">📍 ' + addr + '</p>' +
-        mapHtml +
-        '</div>' +
-        '<div class="card">' +
-        '<div class="image-grid">' + 
-        (item.images || []).map(function(u, idx) { 
-            return '<div id="lr-img-' + idx + '" style="position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden;">' + 
-                   '<img src="' + u + '" style="width:100%; height:100%; object-fit:cover;">' + 
-                   '<button class="thumb-remove" onclick="removeLastResultImage(' + idx + ')" title="Remove"><i class="fa-solid fa-xmark"></i></button>' + 
-                   '<a href="' + u + '" download="' + u.split('/').pop() + '" class="thumb-download" title="Download"><i class="fa-solid fa-download"></i></a>' + 
-                   '</div>'; 
-        }).join('') + 
-        '</div>' +
-        (item.potholes > 0 ? '<button class="btn btn-blue" onclick="go()">📢 Generate Report</button>' : '<p style="color:var(--red); font-size:14px; text-align:center; margin: 10px 0;">✅ No potholes detected. Report not needed.</p>') +
-        '<button class="btn btn-outline" onclick="window.location.href=\'/\'">🏠 Go Home</button>' +
-        '</div>';
-}
-
-function go() {
-    const item = JSON.parse(sessionStorage.getItem('last_result_item') || 'null')
-        || (JSON.parse(localStorage.getItem('pothole_history') || '[]')[0] || null);
-    if (!item) return;
-
-    // Convert full image URLs back to filenames for complaint template
-    const allImages = (item.images || []).map(url => url.split('/').pop());
-    sessionStorage.setItem('current_complaint', JSON.stringify({
-        potholes: item.potholes,
-        address: item.address,
-        lat: item.lat,
-        lon: item.lon,
-        all_images: allImages,
-        date: item.date || new Date().toLocaleString()
-    }));
-    window.location.href = '/complaint';
-}
-
-function removeLastResultImage(idx) {
-    let sessionItem = JSON.parse(sessionStorage.getItem('last_result_item') || 'null');
-    let history = JSON.parse(localStorage.getItem('pothole_history') || '[]');
-    let histItem = history[0];
-    
-    // Determine the precise count if images_data exists
-    let pCount = 0;
-    if (sessionItem && sessionItem.images_data && sessionItem.images_data[idx]) {
-        pCount = sessionItem.images_data[idx].potholes;
-    } else {
-        pCount = sessionItem && sessionItem.images.length > 0 ? Math.round(sessionItem.potholes / sessionItem.images.length) : 0;
-    }
-
-    if (sessionItem && sessionItem.images) {
-        sessionItem.images.splice(idx, 1);
-        if (sessionItem.images_data) sessionItem.images_data.splice(idx, 1);
-        sessionItem.potholes = Math.max(0, sessionItem.potholes - pCount);
-        sessionStorage.setItem('last_result_item', JSON.stringify(sessionItem));
-        
-        let pc = document.querySelector('h1[style*="font-size:45px"]');
-        if (pc) pc.innerText = sessionItem.potholes;
-    }
-    
-    if (histItem && histItem.images) {
-        if (!sessionItem || histItem.date === sessionItem.date) {
-            histItem.images.splice(idx, 1);
-            if (histItem.images_data) histItem.images_data.splice(idx, 1);
-            histItem.potholes = Math.max(0, histItem.potholes - pCount);
-            localStorage.setItem('pothole_history', JSON.stringify(history));
+    <script>
+        function render(item) {
+            const imgs = (item.images || []).map(function (u) { return '<img src="' + u + '" loading="lazy" decoding="async">'; }).join('');
+            const addr = item.address || 'Location Found';
+            const hasLoc = item.lat != null && item.lon != null && String(item.lat) !== '' && String(item.lon) !== '';
+            const mapHtml = hasLoc
+                ? '<div style="flex-grow:1; display:flex; flex-direction:column;"><iframe style="border-radius:15px; border:none; width:100%; height:100%; flex-grow:1; min-height:180px;" src="https://maps.google.com/maps?q=' + item.lat + ',' + item.lon + '&z=15&output=embed"></iframe></div>'
+                : '<p style="font-size:12px; color:#64748b; margin:10px 0;">📍 Enable location when detecting to see map.</p>';
+            document.getElementById('content').innerHTML =
+                '<div class="desktop-split" style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column; margin: 0;">' +
+                '<div class="card" style="text-align:center; display: flex; flex-direction: column; flex-shrink: 0; margin-bottom: 8px;">' +
+                '<h1 style="color:var(--blue); font-size:40px; margin:0;">' + (item.potholes ?? '') + '</h1>' +
+                '<p>Total Potholes Detected</p>' +
+                '<p style="font-size:11px; margin-bottom:8px;">📍 ' + addr + '</p>' +
+                mapHtml +
+                '</div>' +
+                '<div class="card" style="flex-grow: 1; overflow-y: auto; margin: 0;">' +
+                '<div class="image-grid">' +
+                (item.images || []).map(function (u, idx) {
+                    return '<div id="lr-img-' + idx + '" style="position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden;">' +
+                        '<img src="' + u + '" loading="lazy" decoding="async" style="width:100%; height:100%; object-fit:cover;">' +
+                        '<button class="thumb-remove" onclick="removeLastResultImage(' + idx + ')" title="Remove"><i class="fa-solid fa-xmark"></i></button>' +
+                        '</div>';
+                }).join('') +
+                '</div>' +
+                '</div>';
+            '</div>' +
+                '<div id="action-footer" style="padding: 12px 15px 15px 15px; background: white; z-index: 100; flex-shrink: 0; box-shadow: 0 -4px 15px rgba(0,0,0,0.02);">' +
+                (item.potholes > 0 ? '<button class="btn btn-blue" onclick="go()" style="margin:0; width:100%; border-radius: 20px; font-size: 16px; padding: 18px; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);">📢 Generate Official Report</button>' : '<p style="color:var(--red); font-size:14px; text-align:center; margin: 0;">✅ No potholes detected. Report not needed.</p>') +
+                '</div>';
         }
-    }
-    
-    const el = document.getElementById('lr-img-' + idx);
-    if(el) el.style.display = 'none';
-}
+        function go() {
+            const item = JSON.parse(sessionStorage.getItem('last_result_item') || 'null')
+                || (JSON.parse(localStorage.getItem('pothole_history') || '[]')[0] || null);
+            if (!item) return;
+            // Convert full image URLs back to filenames for complaint template
+            const allImages = (item.images || []).map(url => url.split('/').pop());
+            sessionStorage.setItem('current_complaint', JSON.stringify({
+                potholes: item.potholes,
+                address: item.address,
+                lat: item.lat,
+                lon: item.lon,
+                all_images: allImages,
+                date: item.date || new Date().toLocaleString()
+            }));
+            window.location.href = '/complaint';
+        }
+        function removeLastResultImage(idx) {
+            let sessionItem = JSON.parse(sessionStorage.getItem('last_result_item') || 'null');
+            let history = JSON.parse(localStorage.getItem('pothole_history') || '[]');
+            let histItem = history[0];
 
-const fromSession = JSON.parse(sessionStorage.getItem('last_result_item') || 'null');
-const fromHistory = (JSON.parse(localStorage.getItem('pothole_history') || '[]')[0]) || null;
-const item = fromSession || fromHistory;
+            // Determine the precise count if images_data exists
+            let pCount = 0;
+            if (sessionItem && sessionItem.images_data && sessionItem.images_data[idx]) {
+                pCount = sessionItem.images_data[idx].potholes;
+            } else {
+                pCount = sessionItem && sessionItem.images.length > 0 ? Math.round(sessionItem.potholes / sessionItem.images.length) : 0;
+            }
+            if (sessionItem && sessionItem.images) {
+                sessionItem.images.splice(idx, 1);
+                if (sessionItem.images_data) sessionItem.images_data.splice(idx, 1);
+                sessionItem.potholes = Math.max(0, sessionItem.potholes - pCount);
+                sessionStorage.setItem('last_result_item', JSON.stringify(sessionItem));
 
-if (!item) {
-    document.getElementById('content').innerHTML = `
+                let pc = document.querySelector('h1[style*="font-size:45px"]');
+                if (pc) pc.innerText = sessionItem.potholes;
+            }
+
+            if (histItem && histItem.images) {
+                if (!sessionItem || histItem.date === sessionItem.date) {
+                    histItem.images.splice(idx, 1);
+                    if (histItem.images_data) histItem.images_data.splice(idx, 1);
+                    histItem.potholes = Math.max(0, histItem.potholes - pCount);
+                    localStorage.setItem('pothole_history', JSON.stringify(history));
+                }
+            }
+
+            const el = document.getElementById('lr-img-' + idx);
+            if (el) el.style.display = 'none';
+        }
+        const fromSession = JSON.parse(sessionStorage.getItem('last_result_item') || 'null');
+        const fromHistory = (JSON.parse(localStorage.getItem('pothole_history') || '[]')[0]) || null;
+        const item = fromSession || fromHistory;
+        if (!item) {
+            document.getElementById('content').innerHTML = `
         <div class="card">
             <h3 style="margin:0; color:var(--blue);">No recent result found</h3>
             <p style="margin-top:10px;">Run detection once, then open Official Report again.</p>
             <button class="btn btn-outline" onclick="window.location.href='/'">🏠 Go Home</button>
         </div>
     `;
-} else {
-    render(item);
-}
-</script>
+        } else {
+            render(item);
+        }
+    </script>
 </body>
-</html>
 
+</html>

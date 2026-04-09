@@ -3,3 +3,6 @@ static/results/
 __pycache__/
 *.pyc
 .env
+venv/
+ghmc_payload.json
+.DS_Store

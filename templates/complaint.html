@@ -5,42 +5,199 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_version }}">
+    <style>
+        /* Desktop: No scrolling */
+        @media (min-width: 768px) {
+            .desktop-split>.card:first-child {
+                overflow: auto !important;
+            }
+        }
+    </style>
 </head>
 
 <body>
     <div class="app-shell">
         <div class="header">
             <div class="brand">
-                <button onclick="if(document.referrer) { window.history.back(); } else { window.location.href='/last_result'; }" class="icon-btn"><i
-                        class="fa-solid fa-arrow-left"></i></button>
-                <h1>Official Report</h1>
+                <button onclick="goBack()" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></button>
+                <h1>Final Inspection Report</h1>
+            </div>
+            <div class="nav-icons">
+                <button class="icon-btn" onclick="window.location.href='/'"><i class="fa-solid fa-house"></i></button>
+                <button class="icon-btn" onclick="window.location.href='/history'"><i
+                        class="fa-solid fa-clock-rotate-left"></i></button>
             </div>
         </div>
-        <div class="card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <h3 style="margin:0; font-size:16px;">Report Details</h3>
-                <button class="btn btn-blue"
-                    style="width:auto; padding:6px 14px; margin:0; border-radius:10px; font-size:12px;"
-                    onclick="copyReport()">
-                    <i class="fa-regular fa-copy"></i> Copy Text
-                </button>
+        <div class="desktop-split">
+            <div class="card" style="display:flex; flex-direction:column;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <h3 style="margin:0; font-size:16px;">Detection Summary</h3>
+                    <button class="btn btn-blue"
+                        style="width:auto; padding:6px 14px; margin:0; border-radius:10px; font-size:12px;"
+                        onclick="copyReport()">
+                        <i class="fa-regular fa-copy"></i> Copy Text
+                    </button>
+                </div>
+                <div style="flex-grow:1; display:flex; flex-direction:column; overflow-y:auto; gap:16px;">
+                    <!-- Top Row: Big Number & Date -->
+                    <div style="display:flex; gap:16px;">
+                        <div id="severity-card"
+                            style="flex:1; background: linear-gradient(135deg, #ef4444, #991b1b); color:white; padding:20px; border-radius:20px; display:flex; align-items:center; box-shadow: 0 10px 20px rgba(239, 68, 68, 0.25); transition: all 0.3s ease;">
+                            <div style="flex-grow:1;">
+                                <p id="dash-severity-text"
+                                    style="margin:0; font-size:12px; opacity:0.8; text-transform:uppercase; font-weight:700; letter-spacing:1px;">
+                                    Severity Level</p>
+                                <h4 style="margin:4px 0 0 0; font-size:48px; font-weight:800; line-height:1;"
+                                    id="dash-count">0</h4>
+                                <p style="margin:2px 0 0 0; font-size:13px; opacity:0.9;">Potholes Detected</p>
+                            </div>
+                            <i id="dash-severity-icon" class="fa-solid fa-burst"
+                                style="font-size:45px; opacity:0.15; transform:rotate(15deg);"></i>
+                        </div>
+
+                        <div
+                            style="flex:1; background: #0f172a; color:white; padding:20px; border-radius:20px; display:flex; flex-direction:column; justify-content:center; box-shadow: 0 10px 20px rgba(15, 23, 42, 0.2);">
+                            <p
+                                style="margin:0; font-size:12px; opacity:0.6; text-transform:uppercase; font-weight:700; letter-spacing:1px;">
+                                <i class="fa-regular fa-clock" style="margin-right:5px;"></i>Timestamp</p>
+                            <h4 style="margin:6px 0 0 0; font-size:16px; font-weight:500;" id="dash-date">Unknown</h4>
+                            <div style="margin-top:auto; display:flex; gap:8px;">
+                                <span
+                                    style="font-size:11px; padding:4px 8px; background:rgba(255,255,255,0.1); border-radius:8px; color:#cbd5e1; font-weight:600;"><i
+                                        class="fa-solid fa-robot" style="margin-right:4px;"></i>AI Verified</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Location Card with inline map -->
+                    <div
+                        style="background:white; border:1px solid #e2e8f0; border-radius:20px; overflow:hidden; display:flex; flex-direction:column; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+                        <div style="padding:16px 20px; border-bottom:1px solid #e2e8f0;">
+                            <p
+                                style="margin:0; font-size:12px; color:#64748b; text-transform:uppercase; font-weight:700; letter-spacing:1px;">
+                                <i class="fa-solid fa-location-dot"
+                                    style="margin-right:5px; color:var(--blue);"></i>Incident Location</p>
+                            <p style="margin:6px 0 0 0; font-size:15px; font-weight: 600; color:#0f172a;" id="dash-loc">
+                            </p>
+                        </div>
+                        <div style="display:flex;">
+                            <div style="padding:12px 20px; background:#f8fafc; flex:1; border-right:1px solid #e2e8f0;">
+                                <p
+                                    style="margin:0; font-size:10px; color:#64748b; font-weight:700; letter-spacing:0.5px;">
+                                    LATITUDE</p>
+                                <p style="margin:2px 0 0 0; font-size:14px; font-weight:600; font-family:'Fira Code', monospace; color:#334155;"
+                                    id="dash-lat"></p>
+                            </div>
+                            <div style="padding:12px 20px; background:#f8fafc; flex:1;">
+                                <p
+                                    style="margin:0; font-size:10px; color:#64748b; font-weight:700; letter-spacing:0.5px;">
+                                    LONGITUDE</p>
+                                <p style="margin:2px 0 0 0; font-size:14px; font-weight:600; font-family:'Fira Code', monospace; color:#334155;"
+                                    id="dash-lon"></p>
+                            </div>
+                        </div>
+                        <div id="dash-map-container"
+                            style="height:140px; background:#e2e8f0; display:none; overflow-y:auto;"></div>
+                    </div>
+
+                    <!-- Evidence Section -->
+                    <div
+                        style="background:white; border:1px solid #e2e8f0; border-radius:20px; padding:16px 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                            <p style="margin:0; font-size:14px; font-weight:700; color:#0f172a;"><i
+                                    class="fa-solid fa-camera" style="color:var(--blue); margin-right:6px;"></i>Visual
+                                Evidence</p>
+                            <span
+                                style="font-size:12px; font-weight:700; background:#eff6ff; color:#2563eb; padding:4px 10px; border-radius:12px;"
+                                id="dash-evidence-count"></span>
+                        </div>
+                        <div id="dash-images" style="display:flex; gap:12px; overflow-x:auto; padding-bottom:8px;">
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div id="report-box"></div>
-            <button class="btn btn-blue" style="background:#0ea5e9; margin-top:20px;" onclick="mail()">📧complain via
-                Email</button>
-            <button class="btn btn-blue" style="background:#25D366; color:white;" onclick="wa()">📱 complain on
-                WhatsApp</button>
-            <button class="btn btn-outline" onclick="ghmc()">🏛️ complain on GHMC</button>
-            <button class="btn btn-outline" onclick="window.location.href='/'">🏠 Go Home</button>
+            <div class="card"
+                style="display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
+                <i class="fa-solid fa-paper-plane" style="font-size:36px; color:var(--blue); margin-bottom:16px;"></i>
+                <h3 style="margin:0 0 16px 0; font-size:18px;">Send Official Complaint</h3>
+                <p style="font-size:13px; color:var(--text-muted); margin-bottom:24px;">Send your AI-generated findings
+                    directly to the relevant authorities.</p>
+                <div style="width:100%; max-width:350px;">
+                    <button class="btn btn-blue" style="background:#0ea5e9; margin-top:0;" onclick="mail()">📧 complain
+                        via Email</button>
+                    <button class="btn btn-blue" style="background:#25D366; color:white;" onclick="wa()">📱 complain on
+                        WhatsApp</button>
+                    <button class="btn btn-outline" onclick="ghmc()">🏛️ complain on GHMC</button>
+                </div>
+            </div>
         </div>
     </div>
     <script>
         const d = JSON.parse(sessionStorage.getItem('current_complaint'));
-        const photoLinks = d.all_images.map(img => `${window.location.origin}/static/results/${img}`).join('\n');
+
+        // Populate the UI Dashboard
+        const count = parseInt(d.potholes) || 0;
+        let sevText = 'No Potholes (Safe)';
+        let bgGrad = 'linear-gradient(135deg, #10b981, #047857)';
+        let shadow = 'rgba(16, 185, 129, 0.25)';
+        let sevIcon = 'fa-check-circle';
+
+        if (count > 0 && count <= 2) {
+            sevText = 'Low Severity';
+            bgGrad = 'linear-gradient(135deg, #f59e0b, #b45309)';
+            shadow = 'rgba(245, 158, 11, 0.25)';
+            sevIcon = 'fa-exclamation-triangle';
+        } else if (count > 2 && count <= 5) {
+            sevText = 'Moderate Severity';
+            bgGrad = 'linear-gradient(135deg, #f97316, #c2410c)';
+            shadow = 'rgba(249, 115, 22, 0.25)';
+            sevIcon = 'fa-exclamation-circle';
+        } else if (count > 5) {
+            sevText = 'High Severity';
+            bgGrad = 'linear-gradient(135deg, #ef4444, #991b1b)';
+            shadow = 'rgba(239, 68, 68, 0.25)';
+            sevIcon = 'fa-burst';
+        }
+
+        const sevCard = document.getElementById('severity-card');
+        if (sevCard) {
+            sevCard.style.background = bgGrad;
+            sevCard.style.boxShadow = `0 10px 20px ${shadow}`;
+        }
+        const sevTextEl = document.getElementById('dash-severity-text');
+        if (sevTextEl) sevTextEl.innerText = sevText;
+        const sevIconEl = document.getElementById('dash-severity-icon');
+        if (sevIconEl) sevIconEl.className = 'fa-solid ' + sevIcon;
+        document.getElementById('dash-date').innerText = d.date || 'Unknown';
+        document.getElementById('dash-count').innerText = d.potholes || '0';
+        document.getElementById('dash-loc').innerText = d.address || 'Address not found';
+        document.getElementById('dash-lat').innerText = d.lat || 'N/A';
+        document.getElementById('dash-lon').innerText = d.lon || 'N/A';
+        document.getElementById('dash-evidence-count').innerText = `${(d.all_images || []).length} items`;
+
+        if (d.lat && d.lon) {
+            document.getElementById('dash-map-container').style.display = 'block';
+            document.getElementById('dash-map-container').innerHTML = `<iframe width="100%" height="100%" style="border:none;" src="https://maps.google.com/maps?q=${d.lat},${d.lon}&z=15&output=embed"></iframe>`;
+        }
+        const dashImages = document.getElementById('dash-images');
+        (d.all_images || []).forEach(img => {
+            dashImages.innerHTML += `<img src="/static/results/${img}" style="height:80px; aspect-ratio:1; object-fit:cover; border-radius:10px; border:2px solid #f1f5f9; box-shadow: 0 2px 4px rgba(0,0,0,0.05); flex-shrink:0;">`;
+        });
+        // Still keep string generation for copying / external apps
+        const photoLinks = (d.all_images || []).map(img => `${window.location.origin}/static/results/${img}`).join('\n');
         const mapLine = (d.lat && d.lon) ? `\n🗺️ Map: https://maps.google.com/maps?q=${d.lat},${d.lon}` : '';
         const msg = `*AI POTHOLE REPORT*\n------------------\n📅 Date: ${d.date}\n⚠️ Count: ${d.potholes}\n📍 Location: ${d.address}\n📌 Latitude: ${d.lat}\n📌 Longitude: ${d.lon}${mapLine}\n🖼️ Evidence:\n${photoLinks}`;
-        document.getElementById('report-box').innerText = msg;
-
+        function goBack() {
+            // Check if user came from results page
+            if (document.referrer && document.referrer.includes('/last_result')) {
+                // Go back to results page
+                window.location.href = '/last_result';
+            } else {
+                // Default: go back in browser history
+                window.history.back();
+            }
+        }
         function copyReport() {
             navigator.clipboard.writeText(msg).then(() => {
                 alert("Report text copied to clipboard!");
@@ -48,15 +205,11 @@
                 alert("Copy failed. Please select the text manually.");
             });
         }
-
         async function wa() {
             const ghmcNumber = '8125966586';
             const country = '91';
             window.open(`https://wa.me/${country}${ghmcNumber}?text=${encodeURIComponent(msg)}`, "_blank");
         }
-
-
-
         function mail() { window.location.href = `mailto:ghmc@hyderabad.gov.in?subject=Pothole Repair&body=${encodeURIComponent(msg)}`; }
         async function ghmc() {
             // Copy report text so user can paste directly into GHMC grievance form
@@ -67,7 +220,6 @@
                 // Fallback: still open the page even if clipboard permission denied
                 alert("Preparing GHMC payload on server. If copy failed, copy the report manually.");
             }
-
             // Build payload from the saved session data and send to server
             const payload = { potholes: d.potholes, address: d.address, lat: d.lat, lon: d.lon, all_images: d.all_images, date: d.date, message: msg };
             try {
@@ -77,7 +229,6 @@
                 console.error('Failed to save payload:', err);
                 alert('Could not save GHMC payload on server. The page will still open so you can paste the report manually.');
             }
-
             // Official GHMC e-Complaints -> Lodge Grievance page (OTP-based)
             window.open("https://igs.ghmc.gov.in/operator/send_otp_mobile", "_blank");
         }
